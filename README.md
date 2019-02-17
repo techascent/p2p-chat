@@ -7,12 +7,16 @@ Why? As a quick demonstration of how we can build P2P applications in Reagent / 
 How does it work?
 - Static files for the initial page, javascript and css are provided by the server.
 - Next, each browser window connects to a bootstrapped peer list using libp2p and then subscribes to a "topic"
-- Under the covers, libp2p uses web-sockets to connect the peers to each other without connecting directly to one centralized server
+- Under the covers, libp2p uses web-sockets to connect the client to a set of distributed peers -- meanting it doesn't need a centralized server for communiations.
 - Messages that are sent are published and each node "subscribes" to these updates.
 - When the node gets an update, it populates its own local "app db" in re-frame with the relevant message
 - The messages view then gets the update and shows it to each of the users.
 
 **NOTE** libp2p is very experimental and subject to change. This project was meant as a toy exploration and not meant as a production solution.
+
+## Caveats
+
+This solution isn't without caveats. Notably, the compiled code is several megabytes which is a substantial hit on first load. Additionally, the previous messages are not stored so when a client connects it only gets new updates.
 
 ![Alt text](/screenshots/screenshot.png?raw=true "Screenshot")
 
