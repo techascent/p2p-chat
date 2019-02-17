@@ -1,0 +1,7 @@
+.lein*
+.nrepl*
+figwheel_server.log
+node_modules/
+resources/
+target/
+package-lock.json
