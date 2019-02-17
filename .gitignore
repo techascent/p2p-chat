@@ -1,5 +1,6 @@
 .lein*
 .nrepl*
+.rebel_readline*
 figwheel_server.log
 node_modules/
 resources/
