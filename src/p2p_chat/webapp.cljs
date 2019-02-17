@@ -19,7 +19,7 @@
   []
   (if window.createNode
     (window.createNode create-node)
-    (js/setTimeout connect 200)))
+    (js/setTimeout connect 1000)))
 
 (defn node-subscribe [topic] (rf/dispatch [:node/subscribe topic]))
 (defn node-send [topic text] (rf/dispatch [:chat/send topic text]))
@@ -36,10 +36,7 @@
      "Messages: "
      (into [:div.messages]
            (for [{:keys [handle text] :as msg} @messages*]
-             (do
-               (println msg)
-               [:div.message [:b handle ": "] text])))
-     " "
+             [:div.message [:b handle ": "] text]))
      [:input.send {:value @text*
               :on-key-down #(when (= "Enter" (.-key %))
                               (.preventDefault %)

@@ -9,7 +9,7 @@
      :margin-bottom (px 10)
      :border-radius (px 4)
      :width (px 600)
-     :height (px 600)}
+     :height (px 300)}
     [:div.message
      {:padding-top (px 3)
       :padding-left (px 10)
