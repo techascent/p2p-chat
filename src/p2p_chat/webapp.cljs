@@ -3,8 +3,6 @@
             [reagent.core :as r]
             [p2p-chat.events :as events]))
 
-(def topic "/news")
-
 (defn create-node
   [err node]
   (when err
@@ -21,42 +19,62 @@
     (window.createNode create-node)
     (js/setTimeout connect 1000)))
 
-(defn node-subscribe [topic] (rf/dispatch [:node/subscribe topic]))
-(defn node-send [topic text] (rf/dispatch [:chat/send topic text]))
+(defn chat-subscribe [channel] (rf/dispatch [:chat/subscribe channel]))
+
+(defn send-text
+  [handle* current-channel* text*]
+  (rf/dispatch [:chat/send @current-channel* {:handle @handle* :text @text*}])
+  (reset! text* ""))
+
+(defn chat-send-view
+  [handle* current-channel*]
+  (let [text* (r/atom "")]
+    (fn [handle* current-channel*]
+      [:div
+       [:input.send {:value @text*
+                     :on-key-down #(when (= "Enter" (.-key %))
+                                     (.preventDefault %)
+                                     (send-text handle* current-channel* text*))
+                     :on-change #(reset! text* (-> % .-target .-value))}]
+       [:button.send {:on-click (fn [e] (send-text handle* current-channel* text*))} "Send"]])))
 
 (defn chat-view
-  [handle*]
-  (let [messages* (rf/subscribe [:chat/messages "/news"])
-        text* (r/atom "")
-        send-text (fn []
-                    (node-send topic {:handle @handle* :text @text*})
-                    (reset! text* ""))]
-  (fn []
-    [:div.chat
-     "Messages: "
-     (into [:div.messages]
-           (for [{:keys [handle text] :as msg} @messages*]
-             [:div.message [:b handle ": "] text]))
-     [:input.send {:value @text*
-              :on-key-down #(when (= "Enter" (.-key %))
-                              (.preventDefault %)
-                              (send-text))
-              :on-change #(reset! text* (-> % .-target .-value))}]
-     [:button.send {:on-click (fn [e] (send-text))} "Send"]])))
+  [handle* current-channel*]
+  (let [channels* (rf/subscribe [:chat/channels])]
+    (fn [handle* current-channel*]
+      (let [messages* (rf/subscribe [:chat/messages @current-channel*])]
+        [:div.chat
+         (into [:div.channels]
+               (for [t @channels*]
+                 [:div.channel (merge {:on-click #(reset! current-channel* t)}
+                                      (if (= @current-channel* t)
+                                        {:class "selected"})) t]))
+         (into [:div.messages]
+               (for [{:keys [handle text] :as msg} @messages*]
+                 [:div.message [:b handle ": "] text]))
+         [chat-send-view handle* current-channel*]]))))
 
 (defn app
   []
   (let [connected-peers* (rf/subscribe [:peers/connected])
-        handle* (r/atom "")]
+        handle* (r/atom "")
+        channel* (r/atom "")
+        current-channel* (r/atom nil)]
     (fn  []
       [:div
        [:h3 "P2P Chat"]
        [:div.top-bar
-        [:button {:on-click (fn [e] (node-subscribe "/news"))} "Subscribe"]]
-       [:b "Handle: "]
-       [:input.handle {:value @handle*
-                :on-change #(reset! handle* (-> % .-target .-value))}]
-       [chat-view handle*]])))
+        [:b "Channel: "]
+        [:input {:value @channel*
+                 :on-change #(reset! channel* (-> % .-target .-value))}]
+        [:button {:on-click (fn [e]
+                              (chat-subscribe @channel*)
+                              (reset! current-channel* @channel*))} "Subscribe"]]
+       [:div
+        [:b "Handle: "]
+        [:input {:value @handle*
+                 :on-change #(reset! handle* (-> % .-target .-value))}]]
+       [chat-view handle* current-channel*]])))
 
 (events/register!)
 

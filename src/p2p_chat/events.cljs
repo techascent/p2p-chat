@@ -13,8 +13,8 @@
   (let [msg (js->clj msg)
         reader (transit/reader :json)
         data (.read reader (js/JSON.parse (.toString (get msg "data"))))
-        topic (-> msg (get "topicIDs") first)]
-    (rf/dispatch [:chat/add-data topic data])))
+        channel (-> msg (get "topicIDs") first)]
+    (rf/dispatch [:chat/add-data channel data])))
 
 (defn register-peer-management
   []
@@ -28,7 +28,8 @@
                    (fn [db [peer-info]]
                      (let [id (peer-info->id peer-info)
                            node (:node db)]
-                       (if-not (get-in db [:peers/dialing id])
+                       (if (and (not (get-in db [:peers/dialing id]))
+                                (not (get-in db [:peers/connected id])))
                          (do
                            (.dial node peer-info
                                   (fn [err conn]
@@ -63,18 +64,21 @@
                          (assoc :node node)
                          (assoc :id (-> node .-peerInfo .-id .toB58String)))))
 
-  (rf/reg-event-fx :node/subscribe
+  (rf/reg-event-fx :chat/subscribe
                    [rf/trim-v]
-                   (fn [cofx [topic]]
-                     (let [node (-> cofx :db :node)]
-                     (-> node .-pubsub (.subscribe topic
-                                                   subscription-data
-                                                   (fn [err] (if err (println "Error subscribing: " err))))))
-                     {}))
+                   (fn [cofx [channel]]
+                     (let [db (:db cofx)
+                           node (:node db)]
+                       (if-not ((set (:chat/channels db)) channel)
+                         (-> node .-pubsub (.subscribe channel
+                                                       subscription-data
+                                                       (fn [err] (if err (println "Error subscribing: " err))))))
+                       {:db (-> db
+                                (update :chat/channels (comp vec concat) [channel]))})))
 
   (rf/reg-event-fx :chat/send
                    [rf/trim-v]
-                   (fn [cofx [topic data]]
+                   (fn [cofx [channel data]]
                      (let [node (-> cofx :db :node)
                            writer (transit/writer :json)
                            buffer-data (->> data
@@ -82,19 +86,21 @@
                                             js/JSON.stringify
                                             js/window.Buffer.from)
                            err-callback (fn [err] (if err (println "Error: " err)))]
-                       (-> node .-pubsub (.publish topic buffer-data err-callback))
+                       (-> node .-pubsub (.publish channel buffer-data err-callback))
                        {})))
 
   (rf/reg-event-db :chat/add-data
                    [rf/trim-v]
-                   (fn [db [topic message]]
-                     (update-in db [:chat/messages] concat [message])))
+                   (fn [db [channel message]]
+                     (update-in db [:chat/messages channel] concat [message])))
 
   (rf/reg-sub :chat/messages
-              (fn [db [topic]]
-                (get-in db [:chat/messages topic])))
+              (fn [db [_ channel]]
+                (if channel
+                  (get-in db [:chat/messages channel])
+                  [])))
 
-  (doseq [k [:peers/dialing :peers/connected :chat/messages]]
+  (doseq [k [:peers/dialing :peers/connected :chat/channels]]
     (rf/reg-sub k (fn [db _] (get db k)))))
 
 (defn register!
